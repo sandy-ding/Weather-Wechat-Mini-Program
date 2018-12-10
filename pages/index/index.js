@@ -18,6 +18,10 @@ const weatherColorMap = {
 
 const QQMapWX = require('../../libs/qqmap-wx-jssdk.js')
 
+const UNPROMPTED = 0
+const UNAUTHORIZED = 1
+const AUTHORIZED = 2
+
 Page({
   data:{
     nowTemp:'',
@@ -27,7 +31,7 @@ Page({
     todayDate:'',
     todayTemp:'',
     city:"广州市",
-    locationTipsText:"点击获取当前位置"
+    locationAuthType:UNPROMPTED,
   },
   onPullDownRefresh(){
     this.getNow(()=> {
@@ -35,11 +39,28 @@ Page({
     })
   },
   onLoad(){
-    this.getNow()
+    console.log('onLoad')
     this.qqmapsdk = new QQMapWX({
-      key: '63LBZ-UBHRU-AECVP-BBBWH-7W3YK-N6BFZ'
+      key: 'EAXBZ-33R3X-AA64F-7FIPQ-BY27J-5UF5B'
+    })
+    wx.getSetting({
+      success: res =>{
+        let auth = res.authSetting['scope.userLocation']
+        this.setData({
+          locationAuthType: auth ? AUTHORIZED : (auth === false) ? UNAUTHORIZED : UNPROMPTED
+        })
+
+        if(auth)
+          this.getCityAndWeather()
+        else
+          this.getNow()
+      },
+      fail:()=>{
+        this.getNow()
+      }
     })
   },
+
   getNow(callback){
     wx.request({
       url: "https://test-miniprogram.com/api/weather/now",
@@ -78,7 +99,7 @@ Page({
     let forecast = result.forecast
     let nowHour = new Date().getHours()
     let hourlyWeather = []
-    for (let i = 0; i < 7; i += 1) {
+    for (let i = 0; i < 8; i += 1) {
       hourlyWeather.push({
         time: (i * 3 + nowHour) % 24 + '时',
         iconPath: '/images/' + forecast[i].weather + '-icon.png',
@@ -98,14 +119,19 @@ Page({
     })
   },
   onTapDayWeather(){
-    wx.showToast()
     wx.navigateTo({
-      url:'/pages/list/list',
+      url:'/pages/list/list?city=' + this.data.city,
     })
   },
   onTapLocation() {
+    this.getCityAndWeather()
+  },
+  getCityAndWeather(){
     wx.getLocation({
       success: res => {
+        this.setData({
+          locationAuthType:AUTHORIZED,
+        })
         this.qqmapsdk.reverseGeocoder({
           location:{
             latitude:res.latitude,
@@ -116,12 +142,16 @@ Page({
             console.log(city)
             this.setData({
               city:city,
-              locationTipsText:""
             })
             this.getNow()
           }
         })
       },
+      fail:()=>{
+        this.setData({
+          locationAuthType:UNAUTHORIZED,
+        })
+      }
     })
   }
 })
